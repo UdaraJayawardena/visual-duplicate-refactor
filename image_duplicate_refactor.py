@@ -2,18 +2,26 @@ import os
 from PIL import Image
 import hashlib
 import json
+import shutil
 
 # Configuration
 # Define the project's base path once for cleaner structure
-BASE_PATH = '/home/udara/Data/projects/personal/python/visual_duplicate_refactor'
+# BASE_PATH = '/home/udara/Data/projects/personal/python/visual_duplicate_refactor'
 # BASE_PATH = 'google-drive://daredefy47@gmail.com/0AEM4-UGXnv5_Uk9PVA/1CfMdwzWfi1zseYIEkvMiAvYE_gOsB8Iw/'
+BASE_PATH = '/home/udara/Data/software_projects/personal/python/visual-duplicate-refactor/'
 
 # Build the specific folder paths relative to the base path
+# image_folder = BASE_PATH
 image_folder = os.path.join(BASE_PATH, 'images')
 output_folder = os.path.join(BASE_PATH, 'output')
+duplicates_folder = os.path.join(BASE_PATH, 'images/duplicates')
 
 # Define the file extensions you care about
 ALLOWED_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif')
+
+# If True, every file in each duplicate group gets moved into
+# duplicates_folder (none are kept behind in image_folder).
+MOVE_DUPLICATES = True
 
 # --- Helper Function for Hashing ---
 def get_image_hash(filepath):
@@ -97,7 +105,43 @@ if duplicate_groups_data:
         print(f"\n✅ Successfully saved {len(duplicate_groups_data)} duplicate groups to: {results_filepath}")
     except Exception as e:
         print(f"\n❌ Error saving JSON file: {e}")
-        
+
+    # --- Move ALL files in every duplicate group to duplicates_folder ---
+    if MOVE_DUPLICATES:
+        if not os.path.exists(duplicates_folder):
+            os.makedirs(duplicates_folder)
+
+        moved_count = 0
+        print("\n--- Moving Duplicate Files ---")
+
+        for group in duplicate_groups_data:
+            files = group['files']
+            # Move every file in the group (none are kept behind)
+            files_to_move = files
+
+            for filename in files_to_move:
+                src_path = os.path.join(image_folder, filename)
+                dest_path = os.path.join(duplicates_folder, filename)
+
+                # Avoid overwriting if a file with the same name already exists
+                # in the duplicates folder (e.g. from a previous run)
+                if os.path.exists(dest_path):
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while os.path.exists(dest_path):
+                        dest_path = os.path.join(duplicates_folder, f"{base}_{counter}{ext}")
+                        counter += 1
+
+                try:
+                    shutil.move(src_path, dest_path)
+                    print(f"  Moved: {filename} -> {os.path.basename(dest_path)}")
+                    moved_count += 1
+                except Exception as e:
+                    print(f"  ❌ Error moving {filename}: {e}")
+
+        print(f"\n✅ Moved {moved_count} duplicate file(s) to: {duplicates_folder}")
+        print(f"   (All files in each duplicate group were moved — none kept in: {image_folder})")
+
 else:
     # If no duplicates are found, this message is printed, and no JSON file is created.
     print("No exact pixel duplicates found. JSON file skipped.")
